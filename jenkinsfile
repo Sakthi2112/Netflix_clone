@@ -1,0 +1,52 @@
+pipeline {
+    agent any 
+    
+    stages {
+        stage('clean workspace'){
+            steps{
+                cleanWs()
+            }
+        }
+        stage ("Git Checkout") {
+            steps {
+                 git branch: 'main', url: 'https://github.com/vijaygiduthuri/Netflix.git'
+            }
+        }
+        stage('Trivy FS SCAN') {
+            steps {
+                sh 'trivy fs .'
+            }
+        }
+        stage ("Build Docker Image") {
+            steps {
+                sh "docker build -t netflix ."
+            }
+        }
+        stage ("Tag & Push to DockerHub") {
+            steps {
+                script {
+                    withCredentials([usernamePassword(credentialsId: 'Docker_cred', passwordVariable: 'DockerHubPass', usernameVariable: 'DockerHubUser')]) {
+                        sh '''
+                           echo "$DockerHubPass" | docker login -u "$DockerHubUser" --password-stdin
+                           docker tag netflix sakthivel2112/netflix:latest
+                           docker push sakthivel2112/netflix:latest
+                        '''   
+                    }
+                }
+            }
+        }
+        stage ("Trivy-image-scan") {
+            steps {
+             sh "trivy image netflix:latest"
+            }
+        }
+
+        stage ("Docker-run") {
+            steps {
+             sh "docker run -d -p 4000:4000 netflix:latest"
+            }
+        }
+    }
+}
+
+    
